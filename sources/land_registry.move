@@ -13,11 +13,14 @@ module veridia::land_registry {
     const E_LAND_ALREADY_EXISTS: u64 = 3;
     const E_INVALID_STATUS: u64 = 4;
     const E_REGISTRY_NOT_INITIALIZED: u64 = 5;
+    const E_NOT_OWNER: u64 = 6;
+    const E_LAND_FROZEN: u64 = 7;
 
     // Land status enum values
     const STATUS_ACTIVE: u8 = 0;
     const STATUS_FROZEN: u8 = 1;
     const STATUS_DISPUTED: u8 = 2;
+    const STATUS_INVALIDATED: u8 = 3;  // Admin can invalidate incorrect registrations
 
     /// Represents the status of a land parcel
     struct LandStatus has store, copy, drop {
@@ -38,6 +41,7 @@ module veridia::land_registry {
     struct LandRegistry has key {
         lands: Table<u64, Land>,
         next_land_id: u64,
+        admin: address,  // Registry administrator
         land_registered_events: event::EventHandle<LandRegisteredEvent>,
         status_changed_events: event::EventHandle<StatusChangedEvent>,
         ownership_transferred_events: event::EventHandle<OwnershipTransferredEvent>,
@@ -78,6 +82,7 @@ module veridia::land_registry {
         move_to(account, LandRegistry {
             lands: table::new(),
             next_land_id: 1,
+            admin: account_addr,
             land_registered_events: account::new_event_handle<LandRegisteredEvent>(account),
             status_changed_events: account::new_event_handle<StatusChangedEvent>(account),
             ownership_transferred_events: account::new_event_handle<OwnershipTransferredEvent>(account),
@@ -121,23 +126,34 @@ module veridia::land_registry {
         });
     }
 
-    /// Transfer ownership of a land parcel
+    /// Transfer ownership of a land parcel (can be called by owner or admin)
     public entry fun transfer_ownership(
         account: &signer,
+        registry_addr: address,
         land_id: u64,
         new_owner: address,
     ) acquires LandRegistry {
-        let account_addr = signer::address_of(account);
-        assert!(exists<LandRegistry>(account_addr), error::not_found(E_REGISTRY_NOT_INITIALIZED));
+        assert!(exists<LandRegistry>(registry_addr), error::not_found(E_REGISTRY_NOT_INITIALIZED));
         
-        let registry = borrow_global_mut<LandRegistry>(account_addr);
+        let registry = borrow_global_mut<LandRegistry>(registry_addr);
         assert!(table::contains(&registry.lands, land_id), error::not_found(E_LAND_NOT_FOUND));
         
         let land = table::borrow_mut(&mut registry.lands, land_id);
         let old_owner = land.owner;
+        let signer_addr = signer::address_of(account);
         
-        // For now, allow the registry owner to transfer any land
-        // In production, you might want to add ownership checks
+        // Check authorization: either the land owner or registry admin can transfer
+        assert!(
+            signer_addr == old_owner || signer_addr == registry.admin,
+            error::permission_denied(E_NOT_AUTHORIZED)
+        );
+        
+        // Check if land is not frozen or invalidated (these cannot be transferred)
+        assert!(
+            land.status.value != STATUS_FROZEN && land.status.value != STATUS_INVALIDATED,
+            error::invalid_state(E_LAND_FROZEN)
+        );
+        
         land.owner = new_owner;
         
         // Emit event
@@ -145,12 +161,12 @@ module veridia::land_registry {
             land_id,
             old_owner,
             new_owner,
-            transferred_by: signer::address_of(account),
+            transferred_by: signer_addr,
             timestamp: timestamp::now_microseconds(),
         });
     }
 
-    /// Update the status of a land parcel
+    /// Update the status of a land parcel (admin only for security reasons)
     public entry fun update_status(
         account: &signer,
         land_id: u64,
@@ -163,6 +179,10 @@ module veridia::land_registry {
         let registry = borrow_global_mut<LandRegistry>(account_addr);
         assert!(table::contains(&registry.lands, land_id), error::not_found(E_LAND_NOT_FOUND));
         
+        let signer_addr = signer::address_of(account);
+        // Only registry admin can change status for security reasons
+        assert!(signer_addr == registry.admin, error::permission_denied(E_NOT_AUTHORIZED));
+        
         let land = table::borrow_mut(&mut registry.lands, land_id);
         let old_status = land.status.value;
         
@@ -173,14 +193,14 @@ module veridia::land_registry {
             land_id,
             old_status,
             new_status,
-            changed_by: signer::address_of(account),
+            changed_by: signer_addr,
             timestamp: timestamp::now_microseconds(),
         });
     }
 
     /// Helper function to validate status values
     fun is_valid_status(status: u8): bool {
-        status == STATUS_ACTIVE || status == STATUS_FROZEN || status == STATUS_DISPUTED
+        status == STATUS_ACTIVE || status == STATUS_FROZEN || status == STATUS_DISPUTED || status == STATUS_INVALIDATED
     }
 
     /// Create a LandStatus from u8 value
@@ -239,8 +259,72 @@ module veridia::land_registry {
         land.metadata_hash
     }
 
+    #[view]
+    public fun get_admin(registry_addr: address): address acquires LandRegistry {
+        assert!(exists<LandRegistry>(registry_addr), error::not_found(E_REGISTRY_NOT_INITIALIZED));
+        let registry = borrow_global<LandRegistry>(registry_addr);
+        registry.admin
+    }
+
+    #[view]
+    public fun is_land_owner(registry_addr: address, land_id: u64, potential_owner: address): bool acquires LandRegistry {
+        if (!land_exists(registry_addr, land_id)) {
+            return false
+        };
+        let owner = get_land_owner(registry_addr, land_id);
+        owner == potential_owner
+    }
+
+    #[view]
+    public fun can_transfer_land(registry_addr: address, land_id: u64): bool acquires LandRegistry {
+        if (!land_exists(registry_addr, land_id)) {
+            return false
+        };
+        let status = get_land_status(registry_addr, land_id);
+        status != STATUS_FROZEN && status != STATUS_INVALIDATED
+    }
+
+    /// Allow land owner to initiate a transfer to themselves first, then to new owner
+    /// This provides a two-step transfer process for additional security
+    public entry fun self_transfer_ownership(
+        owner: &signer,
+        registry_addr: address,
+        land_id: u64,
+        new_owner: address,
+    ) acquires LandRegistry {
+        assert!(exists<LandRegistry>(registry_addr), error::not_found(E_REGISTRY_NOT_INITIALIZED));
+        
+        let registry = borrow_global_mut<LandRegistry>(registry_addr);
+        assert!(table::contains(&registry.lands, land_id), error::not_found(E_LAND_NOT_FOUND));
+        
+        let land = table::borrow_mut(&mut registry.lands, land_id);
+        let old_owner = land.owner;
+        let signer_addr = signer::address_of(owner);
+        
+        // Only the current owner can initiate self-transfer
+        assert!(signer_addr == old_owner, error::permission_denied(E_NOT_OWNER));
+        
+        // Check if land is not frozen or invalidated
+        assert!(
+            land.status.value != STATUS_FROZEN && land.status.value != STATUS_INVALIDATED,
+            error::invalid_state(E_LAND_FROZEN)
+        );
+        
+        land.owner = new_owner;
+        
+        // Emit event
+        event::emit_event(&mut registry.ownership_transferred_events, OwnershipTransferredEvent {
+            land_id,
+            old_owner,
+            new_owner,
+            transferred_by: signer_addr,
+            timestamp: timestamp::now_microseconds(),
+        });
+    }
+
     // Status constants for external use
     public fun status_active(): u8 { STATUS_ACTIVE }
     public fun status_frozen(): u8 { STATUS_FROZEN }
     public fun status_disputed(): u8 { STATUS_DISPUTED }
+    public fun status_invalidated(): u8 { STATUS_INVALIDATED }
 }

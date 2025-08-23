@@ -38,14 +38,14 @@ module veridia::land_registry_tests {
         assert!(land_registry::get_next_land_id(admin_addr) == 2, 5);
     }
 
-    #[test(admin = @veridia, aptos_framework = @aptos_framework)]
-    public entry fun test_transfer_ownership(admin: signer, aptos_framework: signer) {
+    #[test(admin = @veridia, owner = @0x123, aptos_framework = @aptos_framework)]
+    public entry fun test_transfer_ownership(admin: signer, owner: signer, aptos_framework: signer) {
         // Initialize timestamp and registry
         aptos_framework::timestamp::set_time_has_started_for_testing(&aptos_framework);
         land_registry::initialize(&admin);
         
         let admin_addr = signer::address_of(&admin);
-        let original_owner = @0x123;
+        let original_owner = signer::address_of(&owner);
         let new_owner = @0x456;
         let jurisdiction = string::utf8(b"California, USA");
         let metadata_hash = string::utf8(b"QmHash123456789abcdef");
@@ -53,8 +53,8 @@ module veridia::land_registry_tests {
         // Register a land
         land_registry::register_land(&admin, original_owner, jurisdiction, metadata_hash);
         
-        // Transfer ownership
-        land_registry::transfer_ownership(&admin, 1, new_owner);
+        // Test self-transfer by owner
+        land_registry::self_transfer_ownership(&owner, admin_addr, 1, new_owner);
         
         // Verify ownership was transferred
         assert!(land_registry::get_land_owner(admin_addr, 1) == new_owner, 6);
@@ -114,5 +114,70 @@ module veridia::land_registry_tests {
         
         // Try to update with invalid status (should fail)
         land_registry::update_status(&admin, 1, 99);
+    }
+
+    #[test(admin = @veridia, owner = @0x123, stranger = @0x789, aptos_framework = @aptos_framework)]
+    #[expected_failure(abort_code = 0x50001, location = veridia::land_registry)]
+    public entry fun test_unauthorized_transfer(admin: signer, owner: signer, stranger: signer, aptos_framework: signer) {
+        // Initialize timestamp and registry
+        aptos_framework::timestamp::set_time_has_started_for_testing(&aptos_framework);
+        land_registry::initialize(&admin);
+        
+        let admin_addr = signer::address_of(&admin);
+        let owner_addr = signer::address_of(&owner);
+        let new_owner = @0x456;
+        let jurisdiction = string::utf8(b"California, USA");
+        let metadata_hash = string::utf8(b"QmHash123456789abcdef");
+        
+        // Register a land
+        land_registry::register_land(&admin, owner_addr, jurisdiction, metadata_hash);
+        
+        // Try to transfer as stranger (not owner or admin) - should fail
+        land_registry::transfer_ownership(&stranger, admin_addr, 1, new_owner);
+    }
+
+    #[test(admin = @veridia, owner = @0x123, aptos_framework = @aptos_framework)]
+    #[expected_failure(abort_code = 0x30007, location = veridia::land_registry)]
+    public entry fun test_frozen_land_transfer(admin: signer, owner: signer, aptos_framework: signer) {
+        // Initialize timestamp and registry
+        aptos_framework::timestamp::set_time_has_started_for_testing(&aptos_framework);
+        land_registry::initialize(&admin);
+        
+        let admin_addr = signer::address_of(&admin);
+        let owner_addr = signer::address_of(&owner);
+        let new_owner = @0x456;
+        let jurisdiction = string::utf8(b"California, USA");
+        let metadata_hash = string::utf8(b"QmHash123456789abcdef");
+        
+        // Register a land
+        land_registry::register_land(&admin, owner_addr, jurisdiction, metadata_hash);
+        
+        // Freeze the land
+        land_registry::update_status(&admin, 1, land_registry::status_frozen());
+        
+        // Try to transfer frozen land (should fail)
+        land_registry::self_transfer_ownership(&owner, admin_addr, 1, new_owner);
+    }
+
+    #[test(admin = @veridia, owner = @0x123, aptos_framework = @aptos_framework)]
+    public entry fun test_invalidated_status(admin: signer, owner: signer, aptos_framework: signer) {
+        // Initialize timestamp and registry
+        aptos_framework::timestamp::set_time_has_started_for_testing(&aptos_framework);
+        land_registry::initialize(&admin);
+        
+        let admin_addr = signer::address_of(&admin);
+        let owner_addr = signer::address_of(&owner);
+        let jurisdiction = string::utf8(b"California, USA");
+        let metadata_hash = string::utf8(b"QmHash123456789abcdef");
+        
+        // Register a land
+        land_registry::register_land(&admin, owner_addr, jurisdiction, metadata_hash);
+        
+        // Test invalidated status
+        land_registry::update_status(&admin, 1, land_registry::status_invalidated());
+        assert!(land_registry::get_land_status(admin_addr, 1) == land_registry::status_invalidated(), 1);
+        
+        // Test that invalidated land cannot be transferred
+        assert!(!land_registry::can_transfer_land(admin_addr, 1), 2);
     }
 }
