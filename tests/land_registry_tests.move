@@ -95,7 +95,7 @@ module veridia::land_registry_tests {
         let admin_addr = signer::address_of(&admin);
         
         // Try to get a land that doesn't exist
-        land_registry::get_land(admin_addr, 999);
+        land_registry::get_land_info(admin_addr, 999);
     }
 
     #[test(admin = @veridia, aptos_framework = @aptos_framework)]

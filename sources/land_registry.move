@@ -23,12 +23,12 @@ module veridia::land_registry {
     const STATUS_INVALIDATED: u8 = 3;  // Admin can invalidate incorrect registrations
 
     /// Represents the status of a land parcel
-    struct LandStatus has store, copy, drop {
+    struct LandStatus has store, copy {
         value: u8,
     }
 
     /// Represents a registered land parcel
-    struct Land has store, copy, drop {
+    struct Land has store, copy {
         id: u64,
         owner: address,
         jurisdiction: String,
@@ -212,11 +212,12 @@ module veridia::land_registry {
     // View functions for querying data
 
     #[view]
-    public fun get_land(registry_addr: address, land_id: u64): Land acquires LandRegistry {
+    public fun get_land_info(registry_addr: address, land_id: u64): (u64, address, String, String, u8, u64) acquires LandRegistry {
         assert!(exists<LandRegistry>(registry_addr), error::not_found(E_REGISTRY_NOT_INITIALIZED));
         let registry = borrow_global<LandRegistry>(registry_addr);
         assert!(table::contains(&registry.lands, land_id), error::not_found(E_LAND_NOT_FOUND));
-        *table::borrow(&registry.lands, land_id)
+        let land = table::borrow(&registry.lands, land_id);
+        (land.id, land.owner, land.jurisdiction, land.metadata_hash, land.status.value, land.registered_at)
     }
 
     #[view]
@@ -237,26 +238,34 @@ module veridia::land_registry {
 
     #[view]
     public fun get_land_owner(registry_addr: address, land_id: u64): address acquires LandRegistry {
-        let land = get_land(registry_addr, land_id);
-        land.owner
+        assert!(exists<LandRegistry>(registry_addr), error::not_found(E_REGISTRY_NOT_INITIALIZED));
+        let registry = borrow_global<LandRegistry>(registry_addr);
+        assert!(table::contains(&registry.lands, land_id), error::not_found(E_LAND_NOT_FOUND));
+        table::borrow(&registry.lands, land_id).owner
     }
 
     #[view]
     public fun get_land_status(registry_addr: address, land_id: u64): u8 acquires LandRegistry {
-        let land = get_land(registry_addr, land_id);
-        land.status.value
+        assert!(exists<LandRegistry>(registry_addr), error::not_found(E_REGISTRY_NOT_INITIALIZED));
+        let registry = borrow_global<LandRegistry>(registry_addr);
+        assert!(table::contains(&registry.lands, land_id), error::not_found(E_LAND_NOT_FOUND));
+        table::borrow(&registry.lands, land_id).status.value
     }
 
     #[view]
     public fun get_land_jurisdiction(registry_addr: address, land_id: u64): String acquires LandRegistry {
-        let land = get_land(registry_addr, land_id);
-        land.jurisdiction
+        assert!(exists<LandRegistry>(registry_addr), error::not_found(E_REGISTRY_NOT_INITIALIZED));
+        let registry = borrow_global<LandRegistry>(registry_addr);
+        assert!(table::contains(&registry.lands, land_id), error::not_found(E_LAND_NOT_FOUND));
+        table::borrow(&registry.lands, land_id).jurisdiction
     }
 
     #[view]
     public fun get_land_metadata_hash(registry_addr: address, land_id: u64): String acquires LandRegistry {
-        let land = get_land(registry_addr, land_id);
-        land.metadata_hash
+        assert!(exists<LandRegistry>(registry_addr), error::not_found(E_REGISTRY_NOT_INITIALIZED));
+        let registry = borrow_global<LandRegistry>(registry_addr);
+        assert!(table::contains(&registry.lands, land_id), error::not_found(E_LAND_NOT_FOUND));
+        table::borrow(&registry.lands, land_id).metadata_hash
     }
 
     #[view]
