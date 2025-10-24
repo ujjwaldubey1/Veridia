@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:storage": "node ../test_web3_storage.js"
+    "test:storage": "node ../test_web3_storage.js",
+    "test:storacha": "node ../test_storacha_did.js"
   },
   "dependencies": {
     "@aptos-labs/ts-sdk": "^3.1.3",

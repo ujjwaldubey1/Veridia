@@ -34,11 +34,11 @@ import {
 } from "./useLandRegistry"
 import { FileTextOutlined, CameraOutlined, UploadOutlined } from "@ant-design/icons"
 
-// Your Storacha DID
-const STORACHA_DID = 'did:key:z6Mktmi8U1pJD3hXWrB3HfVw8q5azxPHn9DoNUuGqP5wPiSN'
-
 const { Header, Content, Footer } = Layout
 const { Title, Text, Link } = Typography
+
+// Your Storacha DID
+const STORACHA_DID = 'did:key:z6Mktmi8U1pJD3hXWrB3HfVw8q5azxPHn9DoNUuGqP5wPiSN'
 
 function shortAddress(addr?: string, head = 6, tail = 4) {
     if (!addr) return "-"
@@ -47,7 +47,6 @@ function shortAddress(addr?: string, head = 6, tail = 4) {
     return `${s.slice(0, head)}...${s.slice(-tail)}`
 }
 
-// Determine network from Vite env; used to decide if we show deployment details
 const NETWORK_NAME =
     (import.meta.env.VITE_APTOS_NETWORK as string | undefined)?.toLowerCase() ??
     "devnet"
@@ -60,22 +59,23 @@ const NETWORK_LABEL_MAP: Record<string, string> = {
 const NETWORK_LABEL = NETWORK_LABEL_MAP[NETWORK_NAME] ?? NETWORK_NAME
 const IS_MAINNET = NETWORK_NAME === "mainnet"
 
-function App() {
+function AppWithDID() {
     const { disconnect, account } = useWallet()
     const connected = !!account?.address
 
     const [form] = Form.useForm()
     const [transferForm] = Form.useForm()
     const [statusForm] = Form.useForm()
+    const [documentForm] = Form.useForm()
 
-    const [loading, setLoading] = useState(false) // mutate tx loading
-    const [lookupLoading, setLookupLoading] = useState(false) // read/view loading
+    const [loading, setLoading] = useState(false)
+    const [lookupLoading, setLookupLoading] = useState(false)
+    const [uploading, setUploading] = useState(false)
+    const [uploadProgress, setUploadProgress] = useState(0)
     const [nextId, setNextId] = useState<number | null>(null)
     const [landIdQuery, setLandIdQuery] = useState<string>("1")
     const [landInfo, setLandInfo] = useState<any>(null)
     const [landMetadata, setLandMetadata] = useState<any>(null)
-    const [uploading, setUploading] = useState(false)
-    const [uploadProgress, setUploadProgress] = useState(0)
     const [uploadedFiles, setUploadedFiles] = useState<{
         deed?: File
         survey?: File
@@ -90,6 +90,17 @@ function App() {
         checkLandExists,
         getNextLandId,
     } = useLandRegistry()
+
+    useEffect(() => {
+        ;(async () => {
+            try {
+                const id = await getNextLandId()
+                setNextId(id)
+            } catch (e) {
+                console.warn(e)
+            }
+        })()
+    }, [getNextLandId])
 
     // Simulate file upload to Storacha (replace with actual Storacha client)
     const uploadToStoracha = async (file: File): Promise<string> => {
@@ -124,7 +135,7 @@ function App() {
     // Register land with documents
     const handleRegisterWithDocuments = async () => {
         try {
-            const values = await form.validateFields()
+            const values = await documentForm.validateFields()
             setLoading(true)
 
             // Upload documents to Storacha
@@ -142,20 +153,20 @@ function App() {
 
             // Create metadata
             const metadata = {
-                title: values.title || "Land Registry Document",
-                description: values.description || "Property registered via Veridia Land Registry",
+                title: values.title,
+                description: values.description,
                 property_details: {
-                    address: values.address || "Not specified",
+                    address: values.address,
                     coordinates: {
-                        latitude: values.latitude || 0,
-                        longitude: values.longitude || 0,
+                        latitude: values.latitude,
+                        longitude: values.longitude,
                     },
-                    area: values.area || "Not specified",
-                    property_type: values.property_type || "Not specified",
+                    area: values.area,
+                    property_type: values.property_type,
                 },
                 legal_info: {
-                    parcel_number: values.parcel_number || "Not specified",
-                    zoning: values.zoning || "Not specified",
+                    parcel_number: values.parcel_number,
+                    zoning: values.zoning,
                     restrictions: values.restrictions || [],
                 },
                 documents: documentHashes,
@@ -174,10 +185,10 @@ function App() {
             const metadataHash = await uploadToStoracha(metadataFile)
 
             // Register land with metadata hash
-            await registerLand(values.owner, values.jurisdiction, `ipfs://${metadataHash}`)
+            await registerLand(values.owner, values.jurisdiction, metadataHash)
 
             message.success("Land registered with documents!")
-            form.resetFields()
+            documentForm.resetFields()
             setUploadedFiles({})
             
             const id = await getNextLandId()
@@ -189,25 +200,6 @@ function App() {
             setLoading(false)
         }
     }
-
-    const handleFileUpload = (file: File, type: 'deed' | 'survey' | 'photos') => {
-        setUploadedFiles(prev => ({
-            ...prev,
-            [type]: file
-        }))
-        return false // Prevent default upload
-    }
-
-    useEffect(() => {
-        ;(async () => {
-            try {
-                const id = await getNextLandId()
-                setNextId(id)
-            } catch (e) {
-                console.warn(e)
-            }
-        })()
-    }, [getNextLandId])
 
     const handleRegister = async () => {
         try {
@@ -234,9 +226,7 @@ function App() {
             const values = await transferForm.validateFields()
             const id = Number(values.landId)
             if (!Number.isInteger(id) || id <= 0) {
-                throw new Error(
-                    "Please enter a valid Land ID (positive integer)"
-                )
+                throw new Error("Please enter a valid Land ID (positive integer)")
             }
             setLoading(true)
             await transferOwnership(id, values.newOwner)
@@ -254,16 +244,10 @@ function App() {
             const values = await statusForm.validateFields()
             const id = Number(values.landId)
             if (!Number.isInteger(id) || id <= 0) {
-                throw new Error(
-                    "Please enter a valid Land ID (positive integer)"
-                )
+                throw new Error("Please enter a valid Land ID (positive integer)")
             }
             const statusVal = Number(values.status)
-            if (
-                !Number.isInteger(statusVal) ||
-                statusVal < 0 ||
-                statusVal > 2
-            ) {
+            if (!Number.isInteger(statusVal) || statusVal < 0 || statusVal > 2) {
                 throw new Error("Please select a valid status")
             }
             setLoading(true)
@@ -292,8 +276,7 @@ function App() {
                 
                 // Try to load metadata from Storacha
                 try {
-                    const metadataHash = info.metadata_hash.replace('ipfs://', '')
-                    const response = await fetch(`https://w3s.link/ipfs/${metadataHash}`)
+                    const response = await fetch(`https://w3s.link/ipfs/${info.metadata_hash}`)
                     if (response.ok) {
                         const metadata = await response.json()
                         setLandMetadata(metadata)
@@ -327,9 +310,7 @@ function App() {
     const onWalletMenuClick = async ({ key }: { key: string }) => {
         try {
             if (key === "copy") {
-                await navigator.clipboard.writeText(
-                    account?.address?.toString() || ""
-                )
+                await navigator.clipboard.writeText(account?.address?.toString() || "")
                 message.success("Address copied")
             }
             if (key === "disconnect") {
@@ -338,6 +319,14 @@ function App() {
         } catch (e) {
             message.error("Action failed")
         }
+    }
+
+    const handleFileUpload = (file: File, type: 'deed' | 'survey' | 'photos') => {
+        setUploadedFiles(prev => ({
+            ...prev,
+            [type]: file
+        }))
+        return false // Prevent default upload
     }
 
     const renderHeaderRight = () => (
@@ -358,6 +347,15 @@ function App() {
                                 <div style={{ fontFamily: "monospace" }}>
                                     <Text copyable={{ text: REGISTRY_ADDRESS }}>
                                         {REGISTRY_ADDRESS}
+                                    </Text>
+                                </div>
+                                <Divider />
+                                <div style={{ marginBottom: 6 }}>
+                                    <Text strong>Storacha DID</Text>
+                                </div>
+                                <div style={{ fontFamily: "monospace" }}>
+                                    <Text copyable={{ text: STORACHA_DID }}>
+                                        {STORACHA_DID}
                                     </Text>
                                 </div>
                             </div>
@@ -403,7 +401,7 @@ function App() {
         </Space>
     )
 
-    const registerTab = (
+    const registerWithDocumentsTab = (
         <Row gutter={[16, 16]}>
             <Col xs={24}>
                 <Card title="Register Land with Documents (Storacha + DID)" bordered>
@@ -415,18 +413,13 @@ function App() {
                         style={{ marginBottom: 16 }}
                     />
                     
-                    <Form form={form} layout="vertical" disabled={!connected}>
+                    <Form form={documentForm} layout="vertical" disabled={!connected}>
                         <Row gutter={16}>
                             <Col xs={24} md={12}>
                                 <Form.Item
                                     label="Owner Address"
                                     name="owner"
-                                    rules={[
-                                        {
-                                            required: true,
-                                            message: "Owner address required",
-                                        },
-                                    ]}
+                                    rules={[{ required: true, message: "Owner address required" }]}
                                     initialValue={account?.address}
                                 >
                                     <Input placeholder="0x..." />
@@ -448,6 +441,7 @@ function App() {
                                 <Form.Item
                                     label="Property Title"
                                     name="title"
+                                    rules={[{ required: true }]}
                                 >
                                     <Input placeholder="e.g., Land Deed for 123 Main St" />
                                 </Form.Item>
@@ -456,6 +450,7 @@ function App() {
                                 <Form.Item
                                     label="Property Type"
                                     name="property_type"
+                                    rules={[{ required: true }]}
                                 >
                                     <Select placeholder="Select property type">
                                         <Select.Option value="Residential">Residential</Select.Option>
@@ -470,6 +465,7 @@ function App() {
                         <Form.Item
                             label="Property Address"
                             name="address"
+                            rules={[{ required: true }]}
                         >
                             <Input placeholder="123 Main Street, City, State" />
                         </Form.Item>
@@ -479,6 +475,7 @@ function App() {
                                 <Form.Item
                                     label="Latitude"
                                     name="latitude"
+                                    rules={[{ required: true, type: "number" }]}
                                 >
                                     <InputNumber
                                         style={{ width: "100%" }}
@@ -491,6 +488,7 @@ function App() {
                                 <Form.Item
                                     label="Longitude"
                                     name="longitude"
+                                    rules={[{ required: true, type: "number" }]}
                                 >
                                     <InputNumber
                                         style={{ width: "100%" }}
@@ -503,6 +501,7 @@ function App() {
                                 <Form.Item
                                     label="Area (sq ft)"
                                     name="area"
+                                    rules={[{ required: true }]}
                                 >
                                     <Input placeholder="5000" />
                                 </Form.Item>
@@ -514,6 +513,7 @@ function App() {
                                 <Form.Item
                                     label="Parcel Number"
                                     name="parcel_number"
+                                    rules={[{ required: true }]}
                                 >
                                     <Input placeholder="123-456-789" />
                                 </Form.Item>
@@ -522,6 +522,7 @@ function App() {
                                 <Form.Item
                                     label="Zoning"
                                     name="zoning"
+                                    rules={[{ required: true }]}
                                 >
                                     <Input placeholder="R1" />
                                 </Form.Item>
@@ -546,6 +547,7 @@ function App() {
                         <Form.Item
                             label="Description"
                             name="description"
+                            rules={[{ required: true }]}
                         >
                             <Input.TextArea
                                 rows={3}
@@ -625,6 +627,53 @@ function App() {
         </Row>
     )
 
+    const registerTab = (
+        <Row gutter={[16, 16]}>
+            <Col xs={24}>
+                <Card title="Register Land (Simple)" bordered>
+                    <Form form={form} layout="vertical" disabled={!connected}>
+                        <Form.Item
+                            label="Owner Address"
+                            name="owner"
+                            rules={[{ required: true, message: "Owner address required" }]}
+                            initialValue={account?.address}
+                        >
+                            <Input placeholder="0x..." />
+                        </Form.Item>
+                        <Form.Item
+                            label="Jurisdiction"
+                            name="jurisdiction"
+                            rules={[{ required: true }]}
+                        >
+                            <Input placeholder="e.g., Lagos, Nigeria" />
+                        </Form.Item>
+                        <Form.Item
+                            label="Metadata Hash (IPFS/Arweave)"
+                            name="metadata"
+                            rules={[{ required: true }]}
+                        >
+                            <Input placeholder="ipfs://... or ar://..." />
+                        </Form.Item>
+                        <Space size="middle" wrap>
+                            <Button
+                                type="primary"
+                                onClick={handleRegister}
+                                loading={loading}
+                                disabled={!connected}
+                            >
+                                Register
+                            </Button>
+                            <Statistic
+                                title="Next Land ID"
+                                value={nextId ?? "-"}
+                            />
+                        </Space>
+                    </Form>
+                </Card>
+            </Col>
+        </Row>
+    )
+
     const lookupTab = (
         <Row gutter={[16, 16]}>
             <Col xs={24}>
@@ -650,19 +699,10 @@ function App() {
                         </Button>
                         <Skeleton loading={lookupLoading} active>
                             {landInfo && (
-                                <Card
-                                    type="inner"
-                                    title={`Land #${landInfo.id}`}
-                                >
-                                    <Descriptions
-                                        column={1}
-                                        size="middle"
-                                        bordered
-                                    >
+                                <Card type="inner" title={`Land #${landInfo.id}`}>
+                                    <Descriptions column={1} size="middle" bordered>
                                         <Descriptions.Item label="Owner">
-                                            <Text copyable>
-                                                {landInfo.owner}
-                                            </Text>
+                                            <Text copyable>{landInfo.owner}</Text>
                                         </Descriptions.Item>
                                         <Descriptions.Item label="Jurisdiction">
                                             {landInfo.jurisdiction}
@@ -782,11 +822,7 @@ function App() {
         <Row gutter={[16, 16]}>
             <Col xs={24} md={12}>
                 <Card title="Transfer Ownership" bordered>
-                    <Form
-                        form={transferForm}
-                        layout="vertical"
-                        disabled={!connected}
-                    >
+                    <Form form={transferForm} layout="vertical" disabled={!connected}>
                         <Form.Item
                             label="Land ID"
                             name="landId"
@@ -795,9 +831,7 @@ function App() {
                                     required: true,
                                     type: "number",
                                     transform: (v) =>
-                                        v === "" || v === null
-                                            ? undefined
-                                            : Number(v),
+                                        v === "" || v === null ? undefined : Number(v),
                                     min: 1,
                                 },
                             ]}
@@ -829,11 +863,7 @@ function App() {
 
             <Col xs={24} md={12}>
                 <Card title="Update Land Status" bordered>
-                    <Form
-                        form={statusForm}
-                        layout="vertical"
-                        disabled={!connected}
-                    >
+                    <Form form={statusForm} layout="vertical" disabled={!connected}>
                         <Form.Item
                             label="Land ID"
                             name="landId"
@@ -842,9 +872,7 @@ function App() {
                                     required: true,
                                     type: "number",
                                     transform: (v) =>
-                                        v === "" || v === null
-                                            ? undefined
-                                            : Number(v),
+                                        v === "" || v === null ? undefined : Number(v),
                                     min: 1,
                                 },
                             ]}
@@ -862,18 +890,9 @@ function App() {
                         >
                             <Select
                                 options={[
-                                    {
-                                        label: "Active",
-                                        value: LandStatus.ACTIVE,
-                                    },
-                                    {
-                                        label: "Frozen",
-                                        value: LandStatus.FROZEN,
-                                    },
-                                    {
-                                        label: "Disputed",
-                                        value: LandStatus.DISPUTED,
-                                    },
+                                    { label: "Active", value: LandStatus.ACTIVE },
+                                    { label: "Frozen", value: LandStatus.FROZEN },
+                                    { label: "Disputed", value: LandStatus.DISPUTED },
                                 ]}
                             />
                         </Form.Item>
@@ -913,11 +932,16 @@ function App() {
                 }}
             >
                 <Tabs
-                    defaultActiveKey="register"
+                    defaultActiveKey="register-docs"
                     items={[
                         {
-                            key: "register",
+                            key: "register-docs",
                             label: "Register with Documents",
+                            children: registerWithDocumentsTab,
+                        },
+                        {
+                            key: "register-simple",
+                            label: "Register (Simple)",
                             children: registerTab,
                         },
                         { key: "lookup", label: "Lookup", children: lookupTab },
@@ -938,4 +962,5 @@ function App() {
     )
 }
 
-export default App
+export default AppWithDID
+
