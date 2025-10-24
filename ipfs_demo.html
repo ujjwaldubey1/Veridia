@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPFS Demo - Veridia Land Registry</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .ipfs-hash {
+            background: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            word-break: break-all;
+        }
+        .url-link {
+            color: #0066cc;
+            text-decoration: none;
+        }
+        .url-link:hover {
+            text-decoration: underline;
+        }
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0052a3;
+        }
+        .result {
+            background: #e8f5e8;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .error {
+            background: #ffe8e8;
+            color: #cc0000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌐 IPFS Demo - Veridia Land Registry</h1>
+        <p>This demo shows how IPFS works with your land registry system.</p>
+        
+        <div class="section">
+            <h2>📋 Sample Land Metadata</h2>
+            <p>This is the type of data that gets stored on IPFS:</p>
+            <pre id="metadata-display">Loading...</pre>
+        </div>
+        
+        <div class="section">
+            <h2>🔗 IPFS Hash Simulation</h2>
+            <p>In a real scenario, this would be the actual IPFS hash from your blockchain:</p>
+            <div class="ipfs-hash" id="ipfs-hash">QmSampleHashForLandDocument123456789</div>
+            <p>This hash points to the metadata stored on IPFS.</p>
+        </div>
+        
+        <div class="section">
+            <h2>🌍 IPFS Gateway URLs</h2>
+            <p>You can access the same content through different IPFS gateways:</p>
+            <div id="gateway-urls">
+                <p><a href="#" class="url-link" id="gateway-1">https://ipfs.io/ipfs/QmSampleHashForLandDocument123456789</a></p>
+                <p><a href="#" class="url-link" id="gateway-2">https://gateway.pinata.cloud/ipfs/QmSampleHashForLandDocument123456789</a></p>
+                <p><a href="#" class="url-link" id="gateway-3">https://cloudflare-ipfs.com/ipfs/QmSampleHashForLandDocument123456789</a></p>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>🔍 How It Works in Your App</h2>
+            <p>When someone looks up land in your registry:</p>
+            <ol>
+                <li>Your smart contract returns the IPFS hash</li>
+                <li>Your frontend fetches the full metadata from IPFS</li>
+                <li>Users can view detailed land information</li>
+            </ol>
+            
+            <button onclick="simulateLookup()">🔍 Simulate Land Lookup</button>
+            <div id="lookup-result"></div>
+        </div>
+        
+        <div class="section">
+            <h2>📤 Upload Your Own Content</h2>
+            <p>Try uploading a file to see how IPFS works:</p>
+            <input type="file" id="file-input" accept=".txt,.json,.pdf,.jpg,.png">
+            <button onclick="uploadFile()">📤 Upload to IPFS</button>
+            <div id="upload-result"></div>
+        </div>
+        
+        <div class="section">
+            <h2>💡 Key Benefits of IPFS</h2>
+            <ul>
+                <li><strong>Decentralized:</strong> No single server controls your data</li>
+                <li><strong>Immutable:</strong> Content can't be changed without changing the hash</li>
+                <li><strong>Verifiable:</strong> You can verify content integrity using the hash</li>
+                <li><strong>Resilient:</strong> Content is distributed across multiple nodes</li>
+                <li><strong>Cost-effective:</strong> No ongoing storage costs (if pinned)</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // Sample land metadata
+        const landMetadata = {
+            title: "Land Deed for 123 Main Street",
+            description: "Residential property in California, USA",
+            property_details: {
+                address: "123 Main Street, San Francisco, CA",
+                coordinates: {
+                    latitude: 37.7749,
+                    longitude: -122.4194
+                },
+                area: "5000 square feet",
+                property_type: "Residential"
+            },
+            documents: {
+                deed: "QmDeedHash123...",
+                survey: "QmSurveyHash456...",
+                photos: "QmPhotosHash789..."
+            },
+            legal_info: {
+                parcel_number: "123-456-789",
+                zoning: "R1",
+                restrictions: ["Single family residential only"]
+            },
+            registered_date: new Date().toISOString(),
+            registry_info: {
+                blockchain: "Aptos",
+                contract_address: "0xb0270d34e3e2fb1731dbd10cd38472e0322f7b0af7fe97b43475ddf01d1b7b17",
+                land_id: 1
+            }
+        }
+        
+        // Display metadata
+        document.getElementById('metadata-display').textContent = JSON.stringify(landMetadata, null, 2)
+        
+        // Simulate land lookup
+        function simulateLookup() {
+            const resultDiv = document.getElementById('lookup-result')
+            resultDiv.innerHTML = '<div class="result">🔍 Simulating land lookup...</div>'
+            
+            setTimeout(() => {
+                resultDiv.innerHTML = `
+                    <div class="result">
+                        <h3>✅ Land Found!</h3>
+                        <p><strong>Land ID:</strong> 1</p>
+                        <p><strong>Owner:</strong> 0x1234...5678</p>
+                        <p><strong>Jurisdiction:</strong> California, USA</p>
+                        <p><strong>IPFS Hash:</strong> QmSampleHashForLandDocument123456789</p>
+                        <p><strong>Status:</strong> Active</p>
+                        <p><strong>Metadata:</strong> <a href="#" class="url-link">View on IPFS</a></p>
+                    </div>
+                `
+            }, 1000)
+        }
+        
+        // Simulate file upload
+        function uploadFile() {
+            const fileInput = document.getElementById('file-input')
+            const resultDiv = document.getElementById('upload-result')
+            
+            if (!fileInput.files[0]) {
+                resultDiv.innerHTML = '<div class="error">❌ Please select a file first</div>'
+                return
+            }
+            
+            resultDiv.innerHTML = '<div class="result">📤 Uploading to IPFS...</div>'
+            
+            // Simulate upload process
+            setTimeout(() => {
+                const simulatedHash = 'Qm' + Math.random().toString(36).substr(2, 44)
+                resultDiv.innerHTML = `
+                    <div class="result">
+                        <h3>✅ Upload Successful!</h3>
+                        <p><strong>File:</strong> ${fileInput.files[0].name}</p>
+                        <p><strong>IPFS Hash:</strong> ${simulatedHash}</p>
+                        <p><strong>Access URL:</strong> <a href="#" class="url-link">https://ipfs.io/ipfs/${simulatedHash}</a></p>
+                        <p><em>Note: This is a simulation. In reality, you'd need an IPFS node running.</em></p>
+                    </div>
+                `
+            }, 2000)
+        }
+        
+        // Update gateway URLs with current hash
+        const currentHash = 'QmSampleHashForLandDocument123456789'
+        document.getElementById('gateway-1').href = `https://ipfs.io/ipfs/${currentHash}`
+        document.getElementById('gateway-2').href = `https://gateway.pinata.cloud/ipfs/${currentHash}`
+        document.getElementById('gateway-3').href = `https://cloudflare-ipfs.com/ipfs/${currentHash}`
+    </script>
+</body>
+</html>

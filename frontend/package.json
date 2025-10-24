@@ -7,12 +7,14 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:storage": "node ../test_web3_storage.js"
   },
   "dependencies": {
     "@aptos-labs/ts-sdk": "^3.1.3",
     "@aptos-labs/wallet-adapter-ant-design": "^5.1.3",
     "@aptos-labs/wallet-adapter-react": "^7.0.4",
+    "@storacha/client": "^1.8.2",
     "antd": "^5.27.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
