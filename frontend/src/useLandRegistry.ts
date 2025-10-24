@@ -19,7 +19,7 @@ const NODE_URL = import.meta.env.VITE_APTOS_NODE_URL as string | undefined
 
 export const REGISTRY_ADDRESS =
     (import.meta.env.VITE_REGISTRY_ADDRESS as string | undefined) ||
-    "0xb0270d34e3e2fb1731dbd10cd38472e0322f7b0af7fe97b43475ddf01d1b7b17"
+    "0xa8d945729fbf3ba5863909c8470ac6db2621b3d27b20813378e2dc38a716460b"
 
 export const MODULE_NAME =
     (import.meta.env.VITE_MODULE_NAME as string | undefined) || "land_registry"

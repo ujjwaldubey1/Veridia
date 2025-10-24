@@ -4,7 +4,7 @@ version = "1.0.0"
 authors = []
 
 [addresses]
-veridia = "0xb0270d34e3e2fb1731dbd10cd38472e0322f7b0af7fe97b43475ddf01d1b7b17"
+veridia = "0xa8d945729fbf3ba5863909c8470ac6db2621b3d27b20813378e2dc38a716460b"
 
 [dev-addresses]
 
