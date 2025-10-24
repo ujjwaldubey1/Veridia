@@ -5,11 +5,24 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
-    exclude: ['aptos', '@telegram-apps/bridge']
+    exclude: ['@telegram-apps/bridge'],
+    include: ['@aptos-labs/ts-sdk', 'aptos']
   },
   build: {
     rollupOptions: {
-      external: ['aptos', '@telegram-apps/bridge']
+      external: ['@telegram-apps/bridge']
+    },
+    sourcemap: false
+  },
+  server: {
+    fs: {
+      allow: ['..']
     }
+  },
+  define: {
+    global: 'globalThis'
+  },
+  esbuild: {
+    sourcemap: false
   }
 })
