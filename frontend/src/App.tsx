@@ -33,14 +33,15 @@ import {
     LandStatus,
     REGISTRY_ADDRESS,
 } from "./useLandRegistry"
-import { FileTextOutlined, CameraOutlined } from "@ant-design/icons"
+import { FileTextOutlined, CameraOutlined, FundOutlined } from "@ant-design/icons"
 import LandVerificationQR, { type LandVerificationData } from "./components/LandVerificationQR"
+import { Link as RouterLink } from "react-router-dom"
 
 // Your Storacha DID
 const STORACHA_DID = 'did:key:z6Mktmi8U1pJD3hXWrB3HfVw8q5azxPHn9DoNUuGqP5wPiSN'
 
 const { Header, Content, Footer } = Layout
-const { Title, Text, Link } = Typography
+const { Title, Text } = Typography
 
 function shortAddress(addr?: string, head = 6, tail = 4) {
     if (!addr) return "-"
@@ -943,6 +944,14 @@ function App() {
                         { key: "manage", label: "Manage", children: manageTab },
                     ]}
                 />
+
+                <div style={{ marginTop: '24px', textAlign: 'center' }}>
+                    <RouterLink to="/portfolio">
+                        <Button type="primary" icon={<FundOutlined />} size="large">
+                            View My Land Portfolio
+                        </Button>
+                    </RouterLink>
+                </div>
 
                 <Divider />
                 <Text type="secondary">

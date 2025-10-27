@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom"
 import "./index.css"
 import App from "./App.tsx"
 import VerifyLand from "./pages/VerifyLand.tsx"
+import MyPortfolio from "./pages/MyPortfolio.tsx"
 import { AptosWalletAdapterProvider } from "@aptos-labs/wallet-adapter-react"
 import { Network } from "@aptos-labs/ts-sdk"
 import "antd/dist/reset.css"
@@ -31,6 +32,7 @@ createRoot(document.getElementById("root")!).render(
                 <Routes>
                     <Route path="/" element={<App />} />
                     <Route path="/verify" element={<VerifyLand />} />
+                    <Route path="/portfolio" element={<MyPortfolio />} />
                 </Routes>
             </BrowserRouter>
         </AptosWalletAdapterProvider>

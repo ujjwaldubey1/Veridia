@@ -20,7 +20,7 @@ interface LandVerificationQRProps {
     onClose?: () => void
 }
 
-export const LandVerificationQR = ({ data, onClose }: LandVerificationQRProps) => {
+const LandVerificationQR = ({ data, onClose }: LandVerificationQRProps) => {
     const [verificationUrl, setVerificationUrl] = useState('')
 
     useEffect(() => {
