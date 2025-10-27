@@ -96,10 +96,11 @@ module veridia::land_registry {
         jurisdiction: String,
         metadata_hash: String,
     ) acquires LandRegistry {
-        let account_addr = signer::address_of(account);
-        assert!(exists<LandRegistry>(account_addr), error::not_found(E_REGISTRY_NOT_INITIALIZED));
+        // Use the module deployer's address where the registry is stored
+        let registry_addr = @veridia;
+        assert!(exists<LandRegistry>(registry_addr), error::not_found(E_REGISTRY_NOT_INITIALIZED));
         
-        let registry = borrow_global_mut<LandRegistry>(account_addr);
+        let registry = borrow_global_mut<LandRegistry>(registry_addr);
         let land_id = registry.next_land_id;
         
         // Create new land record

@@ -107,44 +107,71 @@ export const useLandRegistry = () => {
 
     const getLand = useCallback(
         async (landId: number): Promise<Land | null> => {
-            const payload = {
-                function:
-                    `${REGISTRY_ADDRESS}::${MODULE_NAME}::get_land` as `${string}::${string}::${string}`,
-                type_arguments: [] as string[],
-                arguments: [REGISTRY_ADDRESS, landId.toString()],
-            }
+            try {
+                const payload = {
+                    function:
+                        `${REGISTRY_ADDRESS}::${MODULE_NAME}::get_land_info` as `${string}::${string}::${string}`,
+                    type_arguments: [] as string[],
+                    arguments: [REGISTRY_ADDRESS, landId.toString()],
+                }
 
-            const result = (await aptos.view({ payload })) as [Land]
-            return result?.[0] ?? null
+                const result = (await aptos.view({ payload })) as [string, string, string, string, string, string]
+                
+                if (result && result.length >= 6) {
+                    return {
+                        id: result[0],
+                        owner: result[1],
+                        jurisdiction: result[2],
+                        metadata_hash: result[3],
+                        status: { value: parseInt(result[4]) },
+                        registered_at: result[5]
+                    }
+                }
+                return null
+            } catch (error) {
+                console.error("Error getting land:", error)
+                return null
+            }
         },
         []
     )
 
     const checkLandExists = useCallback(
         async (landId: number): Promise<boolean> => {
-            const payload = {
-                function:
-                    `${REGISTRY_ADDRESS}::${MODULE_NAME}::land_exists` as `${string}::${string}::${string}`,
-                type_arguments: [] as string[],
-                arguments: [REGISTRY_ADDRESS, landId.toString()],
-            }
+            try {
+                const payload = {
+                    function:
+                        `${REGISTRY_ADDRESS}::${MODULE_NAME}::land_exists` as `${string}::${string}::${string}`,
+                    type_arguments: [] as string[],
+                    arguments: [REGISTRY_ADDRESS, landId.toString()],
+                }
 
-            const result = (await aptos.view({ payload })) as [boolean]
-            return !!result?.[0]
+                const result = (await aptos.view({ payload })) as [boolean]
+                return !!result?.[0]
+            } catch (error) {
+                console.error("Error checking land exists:", error)
+                return false
+            }
         },
         []
     )
 
     const getNextLandId = useCallback(async (): Promise<number> => {
-        const payload = {
-            function:
-                `${REGISTRY_ADDRESS}::${MODULE_NAME}::get_next_land_id` as `${string}::${string}::${string}`,
-            type_arguments: [] as string[],
-            arguments: [REGISTRY_ADDRESS],
-        }
+        try {
+            const payload = {
+                function:
+                    `${REGISTRY_ADDRESS}::${MODULE_NAME}::get_next_land_id` as `${string}::${string}::${string}`,
+                type_arguments: [] as string[],
+                arguments: [REGISTRY_ADDRESS],
+            }
 
-        const result = (await aptos.view({ payload })) as [string]
-        return parseInt(result[0])
+            const result = (await aptos.view({ payload })) as [string]
+            return parseInt(result[0])
+        } catch (error) {
+            console.error("Error getting next land ID:", error)
+            // Return 1 as default if registry not initialized
+            return 1
+        }
     }, [])
 
     const getLandStatus = useCallback(
