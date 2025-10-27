@@ -19,8 +19,10 @@
     "@telegram-apps/bridge": "^2.11.0",
     "antd": "^5.27.1",
     "aptos": "^1.22.1",
+    "qrcode.react": "^4.2.0",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "react-router-dom": "^7.9.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",

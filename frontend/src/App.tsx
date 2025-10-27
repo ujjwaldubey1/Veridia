@@ -24,6 +24,7 @@ import {
     Upload,
     Progress,
     Alert,
+    Modal,
 } from "antd"
 import { useWallet } from "@aptos-labs/wallet-adapter-react"
 import { WalletSelector } from "@aptos-labs/wallet-adapter-ant-design"
@@ -32,7 +33,8 @@ import {
     LandStatus,
     REGISTRY_ADDRESS,
 } from "./useLandRegistry"
-import { FileTextOutlined, CameraOutlined, UploadOutlined } from "@ant-design/icons"
+import { FileTextOutlined, CameraOutlined } from "@ant-design/icons"
+import LandVerificationQR, { type LandVerificationData } from "./components/LandVerificationQR"
 
 // Your Storacha DID
 const STORACHA_DID = 'did:key:z6Mktmi8U1pJD3hXWrB3HfVw8q5azxPHn9DoNUuGqP5wPiSN'
@@ -81,6 +83,8 @@ function App() {
         survey?: File
         photos?: File
     }>({})
+    const [qrModalVisible, setQrModalVisible] = useState(false)
+    const [qrData, setQrData] = useState<LandVerificationData | null>(null)
 
     const {
         registerLand,
@@ -174,14 +178,29 @@ function App() {
             const metadataHash = await uploadToStoracha(metadataFile)
 
             // Register land with metadata hash
-            await registerLand(values.owner, values.jurisdiction, `ipfs://${metadataHash}`)
+            const tx = await registerLand(values.owner, values.jurisdiction, `ipfs://${metadataHash}`)
+            
+            // Get the registered land ID
+            const newLandId = await getNextLandId()
+            
+            // Generate QR code data
+            const verificationData: LandVerificationData = {
+                landId: newLandId - 1, // The ID of the land just registered
+                owner: values.owner,
+                jurisdiction: values.jurisdiction,
+                metadataHash: `ipfs://${metadataHash}`,
+                contractAddress: REGISTRY_ADDRESS,
+                timestamp: new Date().toISOString(),
+                transactionHash: tx.hash,
+            }
+            
+            setQrData(verificationData)
+            setQrModalVisible(true)
 
-            message.success("Land registered with documents!")
+            message.success("Land registered with documents! Opening QR code...")
             form.resetFields()
             setUploadedFiles({})
-            
-            const id = await getNextLandId()
-            setNextId(id)
+            setNextId(newLandId)
 
         } catch (e: any) {
             message.error(e?.message || "Registration failed")
@@ -934,6 +953,18 @@ function App() {
             <Footer style={{ textAlign: "center" }}>
                 Veridia © {new Date().getFullYear()} — Aptos {NETWORK_LABEL} + Storacha (DID: {STORACHA_DID.slice(0, 20)}...)
             </Footer>
+
+            {/* QR Code Modal */}
+            <Modal
+                title="Land Registration Verified - QR Code Generated"
+                open={qrModalVisible}
+                onCancel={() => setQrModalVisible(false)}
+                footer={null}
+                width={700}
+                centered
+            >
+                {qrData && <LandVerificationQR data={qrData} onClose={() => setQrModalVisible(false)} />}
+            </Modal>
         </Layout>
     )
 }

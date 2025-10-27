@@ -1,7 +1,9 @@
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
+import { BrowserRouter, Routes, Route } from "react-router-dom"
 import "./index.css"
 import App from "./App.tsx"
+import VerifyLand from "./pages/VerifyLand.tsx"
 import { AptosWalletAdapterProvider } from "@aptos-labs/wallet-adapter-react"
 import { Network } from "@aptos-labs/ts-sdk"
 import "antd/dist/reset.css"
@@ -25,7 +27,12 @@ createRoot(document.getElementById("root")!).render(
             dappConfig={{ network: NETWORK }}
             onError={(e) => console.error(e)}
         >
-            <App />
+            <BrowserRouter>
+                <Routes>
+                    <Route path="/" element={<App />} />
+                    <Route path="/verify" element={<VerifyLand />} />
+                </Routes>
+            </BrowserRouter>
         </AptosWalletAdapterProvider>
     </StrictMode>
 )
