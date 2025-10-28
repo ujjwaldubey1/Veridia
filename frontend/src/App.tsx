@@ -181,12 +181,20 @@ function App() {
             // Register land with metadata hash
             const tx = await registerLand(values.owner, values.jurisdiction, `ipfs://${metadataHash}`)
             
-            // Get the registered land ID
-            const newLandId = await getNextLandId()
+            // Wait a moment for transaction to settle
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            
+            // Get the registered land ID (after registration, next ID is current + 1, so registered ID is next - 1)
+            const currentNextId = await getNextLandId()
+            const registeredLandId = currentNextId - 1
+            
+            console.log('Transaction hash:', tx.hash)
+            console.log('Next Land ID:', currentNextId)
+            console.log('Registered Land ID:', registeredLandId)
             
             // Generate QR code data
             const verificationData: LandVerificationData = {
-                landId: newLandId - 1, // The ID of the land just registered
+                landId: registeredLandId,
                 owner: values.owner,
                 jurisdiction: values.jurisdiction,
                 metadataHash: `ipfs://${metadataHash}`,
@@ -195,13 +203,15 @@ function App() {
                 transactionHash: tx.hash,
             }
             
+            console.log('QR Data:', verificationData)
+            
             setQrData(verificationData)
             setQrModalVisible(true)
 
-            message.success("Land registered with documents! Opening QR code...")
+            message.success(`Land #${registeredLandId} registered! Opening QR code...`)
             form.resetFields()
             setUploadedFiles({})
-            setNextId(newLandId)
+            setNextId(currentNextId)
 
         } catch (e: any) {
             message.error(e?.message || "Registration failed")
@@ -394,31 +404,67 @@ function App() {
             {!connected ? (
                 <WalletSelector />
             ) : (
-                <Dropdown
-                    placement="bottomRight"
-                    menu={{
-                        onClick: onWalletMenuClick,
-                        items: [
-                            { key: "copy", label: "Copy address" },
-                            { type: "divider" as const },
-                            { key: "disconnect", label: "Disconnect" },
-                        ],
-                    }}
-                >
-                    <Button>
-                        <Space>
-                            <Avatar size="small">
-                                {account?.address
-                                    ?.toString()
-                                    .slice(2, 4)
-                                    .toUpperCase()}
-                            </Avatar>
-                            <span style={{ fontFamily: "monospace" }}>
-                                {shortAddress(account?.address?.toString())}
-                            </span>
-                        </Space>
-                    </Button>
-                </Dropdown>
+                <Space>
+                    {!IS_MAINNET && (
+                        <Alert
+                            message={
+                                <Space>
+                                    <Text>Need APT?</Text>
+                                    <Button
+                                        type="primary"
+                                        size="small"
+                                        onClick={async () => {
+                                            const addr = account?.address?.toString()
+                                            if (addr) {
+                                                await navigator.clipboard.writeText(addr)
+                                                // Try to open faucet with address
+                                                window.open(`https://faucet.devnet.aptoslabs.com/?address=${addr}`, '_blank')
+                                                // Also try alternative faucet
+                                                setTimeout(() => {
+                                                    window.open(`https://devnet.aptos.dev/fund`, '_blank')
+                                                }, 500)
+                                                message.success("Address copied! Use CLI: aptos account fund-with-faucet --account default --amount 100000000000")
+                                            }
+                                        }}
+                                    >
+                                        Get APT
+                                    </Button>
+                                    <Text type="secondary" style={{ fontSize: 11 }}>
+                                        {shortAddress(account?.address?.toString())}
+                                    </Text>
+                                </Space>
+                            }
+                            type="warning"
+                            showIcon
+                            style={{ marginBottom: 0 }}
+                        />
+                    )}
+                    <Dropdown
+                        placement="bottomRight"
+                        menu={{
+                            onClick: onWalletMenuClick,
+                            items: [
+                                { key: "copy", label: "Copy address" },
+                                { type: "divider" as const },
+                                { key: "disconnect", label: "Disconnect" },
+                            ],
+                        }}
+                    >
+                        <Button>
+                            <Space>
+                                <Avatar size="small">
+                                    {account?.address
+                                        ?.toString()
+                                        .slice(2, 4)
+                                        .toUpperCase()}
+                                </Avatar>
+                                <span style={{ fontFamily: "monospace" }}>
+                                    {shortAddress(account?.address?.toString())}
+                                </span>
+                            </Space>
+                        </Button>
+                    </Dropdown>
+                </Space>
             )}
         </Space>
     )
@@ -971,8 +1017,15 @@ function App() {
                 footer={null}
                 width={700}
                 centered
+                destroyOnClose
             >
-                {qrData && <LandVerificationQR data={qrData} onClose={() => setQrModalVisible(false)} />}
+                {qrData ? (
+                    <LandVerificationQR data={qrData} onClose={() => setQrModalVisible(false)} />
+                ) : (
+                    <div style={{ padding: '40px', textAlign: 'center' }}>
+                        <Text type="secondary">Loading QR code...</Text>
+                    </div>
+                )}
             </Modal>
         </Layout>
     )

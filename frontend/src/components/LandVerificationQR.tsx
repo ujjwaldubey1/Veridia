@@ -24,23 +24,29 @@ const LandVerificationQR = ({ data, onClose }: LandVerificationQRProps) => {
     const [verificationUrl, setVerificationUrl] = useState('')
 
     useEffect(() => {
-        // Create verification URL with all land data
-        const verificationData = {
-            landId: data.landId,
-            owner: data.owner,
-            jurisdiction: data.jurisdiction,
-            metadataHash: data.metadataHash,
-            contractAddress: data.contractAddress,
-            timestamp: data.timestamp,
-            transactionHash: data.transactionHash,
-            network: 'aptos-devnet',
-            type: 'land_registry'
-        }
+        try {
+            // Create verification URL with all land data
+            const verificationData = {
+                landId: data.landId,
+                owner: data.owner,
+                jurisdiction: data.jurisdiction,
+                metadataHash: data.metadataHash,
+                contractAddress: data.contractAddress,
+                timestamp: data.timestamp,
+                transactionHash: data.transactionHash,
+                network: 'aptos-devnet',
+                type: 'land_registry'
+            }
 
-        // Create base64 encoded verification data
-        const encoded = btoa(JSON.stringify(verificationData))
-        const url = `${window.location.origin}/verify?data=${encoded}`
-        setVerificationUrl(url)
+            // Create base64 encoded verification data
+            const encoded = btoa(JSON.stringify(verificationData))
+            const url = `${window.location.origin}/verify?data=${encoded}`
+            console.log('Generated verification URL:', url)
+            setVerificationUrl(url)
+        } catch (error) {
+            console.error('Error generating QR code:', error)
+            message.error('Failed to generate QR code')
+        }
     }, [data])
 
     const handleCopyUrl = () => {
@@ -98,15 +104,21 @@ const LandVerificationQR = ({ data, onClose }: LandVerificationQRProps) => {
                 <Divider>Verification QR Code</Divider>
 
                 {/* QR Code */}
-                <div style={{ textAlign: 'center' }}>
-                    <QRCodeSVG
-                        value={verificationUrl}
-                        size={256}
-                        level="H"
-                        includeMargin={true}
-                        style={{ border: '8px solid white', borderRadius: '8px' }}
-                    />
-                </div>
+                {verificationUrl ? (
+                    <div style={{ textAlign: 'center' }}>
+                        <QRCodeSVG
+                            value={verificationUrl}
+                            size={256}
+                            level="H"
+                            includeMargin={true}
+                            style={{ border: '8px solid white', borderRadius: '8px' }}
+                        />
+                    </div>
+                ) : (
+                    <div style={{ textAlign: 'center', padding: '40px' }}>
+                        <Text type="secondary">Generating QR code...</Text>
+                    </div>
+                )}
 
                 <div style={{ textAlign: 'center' }}>
                     <Text type="secondary">
