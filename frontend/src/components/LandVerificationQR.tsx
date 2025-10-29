@@ -5,6 +5,11 @@ import { QrcodeOutlined, CopyOutlined, DownloadOutlined, LinkOutlined } from '@a
 
 const { Title, Text } = Typography
 
+// Format land ID as 5 digits with leading zeros
+function formatLandId(id: number): string {
+    return String(id).padStart(5, '0')
+}
+
 export interface LandVerificationData {
     landId: number
     owner: string
@@ -60,7 +65,7 @@ const LandVerificationQR = ({ data, onClose }: LandVerificationQRProps) => {
             const url = canvas.toDataURL('image/png')
             const link = document.createElement('a')
             link.href = url
-            link.download = `land-${data.landId}-verification.png`
+                                    link.download = `land-${formatLandId(data.landId)}-verification.png`
             link.click()
             message.success('QR code downloaded!')
         }
@@ -82,7 +87,9 @@ const LandVerificationQR = ({ data, onClose }: LandVerificationQRProps) => {
                 <div>
                     <Descriptions title="Land Details" bordered column={1} size="small">
                         <Descriptions.Item label="Land ID">
-                            {data.landId}
+                            <Text strong style={{ fontSize: '16px', fontFamily: 'monospace' }}>
+                                {formatLandId(data.landId)}
+                            </Text>
                         </Descriptions.Item>
                         <Descriptions.Item label="Owner">
                             <Text copyable style={{ fontFamily: 'monospace' }}>

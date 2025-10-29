@@ -168,12 +168,52 @@ export const useLandRegistry = () => {
             if (result && result[0]) {
                 return parseInt(result[0])
             }
-            // Return 1 as default if registry not initialized
-            return 1
+            throw new Error("Empty result from view function")
         } catch (error) {
-            console.error("Error getting next land ID:", error)
-            // Return 1 as default if registry not initialized
-            return 1
+            console.error("SDK view failed, trying REST API directly:", error)
+            
+            // Fallback: Use REST API directly
+            try {
+                // Get fullnode URL, ensure it has /v1 suffix
+                let fullnodeUrl = NODE_URL || aptos.config.fullnode || "https://fullnode.devnet.aptoslabs.com"
+                if (!fullnodeUrl.endsWith("/v1")) {
+                    fullnodeUrl = fullnodeUrl.replace(/\/$/, "") + "/v1"
+                }
+                
+                const response = await fetch(`${fullnodeUrl}/view`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        function: `${REGISTRY_ADDRESS}::${MODULE_NAME}::get_next_land_id`,
+                        type_arguments: [],
+                        arguments: [REGISTRY_ADDRESS],
+                    }),
+                })
+                
+                if (!response.ok) {
+                    throw new Error(`REST API failed: ${response.status}`)
+                }
+                
+                const data = await response.json()
+                console.log("REST API result:", data)
+                
+                if (data && Array.isArray(data) && data[0]) {
+                    return parseInt(data[0])
+                }
+                
+                // Try alternative format
+                if (data?.value && Array.isArray(data.value) && data.value[0]) {
+                    return parseInt(data.value[0])
+                }
+                
+                throw new Error("Unexpected REST API response format")
+            } catch (restError) {
+                console.error("REST API fallback also failed:", restError)
+                // Return 1 as default if registry not initialized
+                return 1
+            }
         }
     }, [])
 

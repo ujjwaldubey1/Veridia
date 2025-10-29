@@ -33,7 +33,7 @@ import {
     LandStatus,
     REGISTRY_ADDRESS,
 } from "./useLandRegistry"
-import { FileTextOutlined, CameraOutlined, FundOutlined } from "@ant-design/icons"
+import { FileTextOutlined, CameraOutlined, FundOutlined, QrcodeOutlined } from "@ant-design/icons"
 import LandVerificationQR, { type LandVerificationData } from "./components/LandVerificationQR"
 import { Link as RouterLink } from "react-router-dom"
 
@@ -48,6 +48,11 @@ function shortAddress(addr?: string, head = 6, tail = 4) {
     const s = addr.toString()
     if (s.length <= head + tail + 3) return s
     return `${s.slice(0, head)}...${s.slice(-tail)}`
+}
+
+function formatLandId(id: number | null | undefined): string {
+    if (id === null || id === undefined || id <= 0) return "00000"
+    return String(id).padStart(5, '0')
 }
 
 // Determine network from Vite env; used to decide if we show deployment details
@@ -181,20 +186,38 @@ function App() {
             // Register land with metadata hash
             const tx = await registerLand(values.owner, values.jurisdiction, `ipfs://${metadataHash}`)
             
-            // Wait a moment for transaction to settle
-            await new Promise(resolve => setTimeout(resolve, 1000))
-            
-            // Get the registered land ID (after registration, next ID is current + 1, so registered ID is next - 1)
-            const currentNextId = await getNextLandId()
-            const registeredLandId = currentNextId - 1
-            
             console.log('Transaction hash:', tx.hash)
-            console.log('Next Land ID:', currentNextId)
-            console.log('Registered Land ID:', registeredLandId)
+            console.log('Transaction submitted successfully')
             
-            // Generate QR code data
+            // Wait for transaction to be processed
+            await new Promise(resolve => setTimeout(resolve, 2000))
+            
+            // Try to get the registered land ID, with fallback
+            let registeredLandId: number | null = null
+            try {
+                const currentNextId = await getNextLandId()
+                registeredLandId = currentNextId - 1
+                console.log('Next Land ID:', currentNextId)
+                console.log('Registered Land ID:', registeredLandId)
+                setNextId(currentNextId)
+            } catch (error) {
+                console.warn('Could not get next land ID, using fallback:', error)
+                // Fallback: if we have a stored nextId, use it
+                if (nextId !== null) {
+                    registeredLandId = nextId - 1
+                    console.log('Using fallback land ID:', registeredLandId)
+                } else {
+                    // Last resort: use 1 as default
+                    registeredLandId = 1
+                    console.log('Using default land ID:', registeredLandId)
+                }
+            }
+            
+            // Generate QR code data (even if land ID is uncertain, we still have tx hash)
+            // Ensure we have a valid land ID (use fallback if needed)
+            const finalLandId = registeredLandId || (nextId ? nextId - 1 : 1)
             const verificationData: LandVerificationData = {
-                landId: registeredLandId,
+                landId: finalLandId,
                 owner: values.owner,
                 jurisdiction: values.jurisdiction,
                 metadataHash: `ipfs://${metadataHash}`,
@@ -204,14 +227,24 @@ function App() {
             }
             
             console.log('QR Data:', verificationData)
+            console.log('Formatted Land ID:', formatLandId(finalLandId))
             
+            // Always show QR code immediately after successful registration
             setQrData(verificationData)
             setQrModalVisible(true)
+            
+            // Force modal to stay visible
+            setTimeout(() => {
+                if (!qrModalVisible) {
+                    setQrModalVisible(true)
+                }
+            }, 100)
 
-            message.success(`Land #${registeredLandId} registered! Opening QR code...`)
+            const formattedLandId = formatLandId(finalLandId)
+            message.success(`Land #${formattedLandId} registered successfully! Opening QR code...`)
+            
             form.resetFields()
             setUploadedFiles({})
-            setNextId(currentNextId)
 
         } catch (e: any) {
             message.error(e?.message || "Registration failed")
@@ -682,7 +715,7 @@ function App() {
                             </Button>
                             <Statistic
                                 title="Next Land ID"
-                                value={nextId ?? "-"}
+                                value={nextId ? formatLandId(nextId) : "-"}
                             />
                         </Space>
                     </Form>
@@ -718,7 +751,7 @@ function App() {
                             {landInfo && (
                                 <Card
                                     type="inner"
-                                    title={`Land #${landInfo.id}`}
+                                    title={`Land #${formatLandId(parseInt(landInfo.id))}`}
                                 >
                                     <Descriptions
                                         column={1}
@@ -1011,13 +1044,22 @@ function App() {
 
             {/* QR Code Modal */}
             <Modal
-                title="Land Registration Verified - QR Code Generated"
+                title={
+                    <Space>
+                        <QrcodeOutlined style={{ color: '#1890ff', fontSize: '20px' }} />
+                        <span style={{ fontSize: '18px', fontWeight: 'bold' }}>
+                            Land Registration Verified - QR Code Generated
+                        </span>
+                    </Space>
+                }
                 open={qrModalVisible}
                 onCancel={() => setQrModalVisible(false)}
                 footer={null}
-                width={700}
+                width={750}
                 centered
-                destroyOnClose
+                destroyOnHidden={false}
+                maskClosable={false}
+                closable={true}
             >
                 {qrData ? (
                     <LandVerificationQR data={qrData} onClose={() => setQrModalVisible(false)} />
