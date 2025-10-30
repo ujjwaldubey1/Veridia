@@ -32,6 +32,7 @@ export const MyPortfolio = () => {
     const [loading, setLoading] = useState(true)
     const [selectedLand, setSelectedLand] = useState<Land | null>(null)
     const [qrModalVisible, setQrModalVisible] = useState(false)
+    const [qrData, setQrData] = useState<LandVerificationData | null>(null)
     const [totalLands, setTotalLands] = useState(0)
 
     // Fetch all lands owned by the connected user
@@ -106,6 +107,14 @@ export const MyPortfolio = () => {
         fetchMyLands()
     }, [account?.address])
 
+    // Ensure QR modal opens when QR data is set
+    useEffect(() => {
+        if (qrData) {
+            console.log('QR Data detected in Portfolio, ensuring modal is visible')
+            setQrModalVisible(true)
+        }
+    }, [qrData])
+
     const handleCardClick = (land: Land) => {
         setSelectedLand(land)
     }
@@ -137,8 +146,6 @@ export const MyPortfolio = () => {
     const formatDate = (timestamp: string) => {
         return new Date(parseInt(timestamp) / 1000).toLocaleString()
     }
-
-    const [qrData, setQrData] = useState<LandVerificationData | null>(null)
 
     if (!account?.address) {
         return (

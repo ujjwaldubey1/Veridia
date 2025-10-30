@@ -184,40 +184,44 @@ function App() {
             const metadataHash = await uploadToStoracha(metadataFile)
 
             // Register land with metadata hash
-            const tx = await registerLand(values.owner, values.jurisdiction, `ipfs://${metadataHash}`)
-            
-            console.log('Transaction hash:', tx.hash)
-            console.log('Transaction submitted successfully')
+            let tx: any = null
+            try {
+                tx = await registerLand(values.owner, values.jurisdiction, `ipfs://${metadataHash}`)
+                console.log('✅ Transaction hash:', tx.hash)
+                console.log('✅ Transaction submitted successfully')
+            } catch (txError: any) {
+                console.error('❌ Transaction failed:', txError)
+                throw new Error(`Transaction failed: ${txError.message || txError}`)
+            }
             
             // Wait for transaction to be processed
             await new Promise(resolve => setTimeout(resolve, 2000))
             
+            // ALWAYS generate and show QR code after successful transaction
             // Try to get the registered land ID, with fallback
-            let registeredLandId: number | null = null
+            let registeredLandId: number = 1
             try {
                 const currentNextId = await getNextLandId()
                 registeredLandId = currentNextId - 1
-                console.log('Next Land ID:', currentNextId)
-                console.log('Registered Land ID:', registeredLandId)
+                console.log('✅ Next Land ID:', currentNextId)
+                console.log('✅ Registered Land ID:', registeredLandId)
                 setNextId(currentNextId)
             } catch (error) {
-                console.warn('Could not get next land ID, using fallback:', error)
+                console.warn('⚠️ Could not get next land ID, using fallback:', error)
                 // Fallback: if we have a stored nextId, use it
-                if (nextId !== null) {
-                    registeredLandId = nextId - 1
-                    console.log('Using fallback land ID:', registeredLandId)
+                if (nextId !== null && nextId > 0) {
+                    registeredLandId = nextId
+                    console.log('Using stored nextId as fallback:', registeredLandId)
                 } else {
-                    // Last resort: use 1 as default
+                    // Last resort: parse from transaction or use 1
                     registeredLandId = 1
                     console.log('Using default land ID:', registeredLandId)
                 }
             }
             
-            // Generate QR code data (even if land ID is uncertain, we still have tx hash)
-            // Ensure we have a valid land ID (use fallback if needed)
-            const finalLandId = registeredLandId || (nextId ? nextId - 1 : 1)
+            // Generate QR code data - this must ALWAYS run after successful transaction
             const verificationData: LandVerificationData = {
-                landId: finalLandId,
+                landId: registeredLandId,
                 owner: values.owner,
                 jurisdiction: values.jurisdiction,
                 metadataHash: `ipfs://${metadataHash}`,
@@ -226,28 +230,60 @@ function App() {
                 transactionHash: tx.hash,
             }
             
-            console.log('QR Data:', verificationData)
-            console.log('Formatted Land ID:', formatLandId(finalLandId))
+            const formattedLandId = formatLandId(registeredLandId)
+            console.log('📱 Generated QR Data:', verificationData)
+            console.log('📱 Formatted Land ID:', formattedLandId)
             
-            // Always show QR code immediately after successful registration
+            // CRITICAL: Always show QR code after successful registration
+            // Set both states synchronously
             setQrData(verificationData)
             setQrModalVisible(true)
             
-            // Force modal to stay visible
+            // Success message
+            message.success(`Land #${formattedLandId} registered successfully! Opening QR code...`, 5)
+            
+            // Force a small delay then ensure modal is visible
             setTimeout(() => {
-                if (!qrModalVisible) {
-                    setQrModalVisible(true)
-                }
+                console.log('🔍 Checking modal state after timeout...')
+                console.log('QR Data exists:', !!qrData)
+                console.log('Modal visible:', qrModalVisible)
+                // Force modal to open if not already
+                setQrModalVisible(true)
             }, 100)
-
-            const formattedLandId = formatLandId(finalLandId)
-            message.success(`Land #${formattedLandId} registered successfully! Opening QR code...`)
+            
+            console.log('✅ QR Modal should now be visible')
             
             form.resetFields()
             setUploadedFiles({})
 
         } catch (e: any) {
-            message.error(e?.message || "Registration failed")
+            console.error('❌ Registration process failed:', e)
+            
+            // Provide detailed error message
+            let errorMsg = 'Registration failed'
+            if (e?.message) {
+                errorMsg = e.message
+            }
+            
+            message.error({
+                content: (
+                    <div>
+                        <div style={{ fontWeight: 'bold' }}>❌ Registration Failed</div>
+                        <div style={{ fontSize: '12px', marginTop: '4px' }}>
+                            {errorMsg}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#888', marginTop: '8px' }}>
+                            Checklist:
+                        </div>
+                        <ul style={{ fontSize: '11px', color: '#888', marginTop: '2px', paddingLeft: '20px', marginBottom: 0 }}>
+                            <li>Wallet connected and has APT balance</li>
+                            <li>Contract deployed at: {REGISTRY_ADDRESS.slice(0, 10)}...</li>
+                            <li>Network: Aptos Devnet</li>
+                        </ul>
+                    </div>
+                ),
+                duration: 10
+            })
         } finally {
             setLoading(false)
         }
@@ -266,11 +302,38 @@ function App() {
             try {
                 const id = await getNextLandId()
                 setNextId(id)
-            } catch (e) {
-                console.warn(e)
+                console.log('✅ Initial next land ID loaded:', id)
+            } catch (e: any) {
+                console.warn('⚠️ Failed to load next land ID on mount:', e?.message)
+                // Set to 1 as fallback
+                setNextId(1)
             }
         })()
     }, [getNextLandId])
+
+    // Ensure QR modal opens when QR data is set
+    useEffect(() => {
+        console.log('🔍 useEffect triggered - qrData:', qrData ? 'EXISTS' : 'NULL')
+        console.log('🔍 useEffect triggered - qrModalVisible:', qrModalVisible)
+        
+        if (qrData) {
+            console.log('✅ QR Data detected, forcing modal visible')
+            console.log('📱 QR Data details:', {
+                landId: qrData.landId,
+                owner: qrData.owner?.slice(0, 10) + '...',
+                transactionHash: qrData.transactionHash?.slice(0, 10) + '...'
+            })
+            setQrModalVisible(true)
+            
+            // Double check after a brief moment
+            setTimeout(() => {
+                console.log('🔍 Modal state check after effect:', {
+                    hasQrData: !!qrData,
+                    modalVisible: qrModalVisible
+                })
+            }, 50)
+        }
+    }, [qrData])
 
     const handleRegister = async () => {
         try {
@@ -510,6 +573,34 @@ function App() {
                         message="Storacha Integration Ready"
                         description={`Using DID: ${STORACHA_DID}`}
                         type="success"
+                        showIcon
+                        style={{ marginBottom: 16 }}
+                    />
+                    
+                    <Alert
+                        message={
+                            <div>
+                                <strong>Contract Address:</strong>{' '}
+                                <Text copyable code style={{ fontSize: '11px' }}>
+                                    {REGISTRY_ADDRESS}
+                                </Text>
+                            </div>
+                        }
+                        description={
+                            <div style={{ fontSize: '12px' }}>
+                                Make sure this contract is deployed on Aptos Devnet.
+                                <br />
+                                <a 
+                                    href={`https://explorer.aptoslabs.com/account/${REGISTRY_ADDRESS}?network=devnet`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ marginTop: '4px', display: 'inline-block' }}
+                                >
+                                    → View on Explorer
+                                </a>
+                            </div>
+                        }
+                        type="info"
                         showIcon
                         style={{ marginBottom: 16 }}
                     />
@@ -1025,11 +1116,37 @@ function App() {
                 />
 
                 <div style={{ marginTop: '24px', textAlign: 'center' }}>
-                    <RouterLink to="/portfolio">
-                        <Button type="primary" icon={<FundOutlined />} size="large">
-                            View My Land Portfolio
+                    <Space size="middle">
+                        <RouterLink to="/portfolio">
+                            <Button type="primary" icon={<FundOutlined />} size="large">
+                                View My Land Portfolio
+                            </Button>
+                        </RouterLink>
+                        
+                        {/* Test button for QR modal debugging */}
+                        <Button 
+                            icon={<QrcodeOutlined />}
+                            onClick={() => {
+                                console.log('🧪 TEST: Manually triggering QR modal')
+                                const testData: LandVerificationData = {
+                                    landId: 99999,
+                                    owner: account?.address?.toString() || '0xTEST',
+                                    jurisdiction: 'Test Jurisdiction',
+                                    metadataHash: 'ipfs://test-hash',
+                                    contractAddress: REGISTRY_ADDRESS,
+                                    timestamp: new Date().toISOString(),
+                                    transactionHash: '0xTEST_TRANSACTION'
+                                }
+                                console.log('🧪 Test data created:', testData)
+                                setQrData(testData)
+                                setQrModalVisible(true)
+                                console.log('🧪 States set - QR data and modal visible')
+                                message.info('Test QR data set - modal should appear', 3)
+                            }}
+                        >
+                            Test QR Modal
                         </Button>
-                    </RouterLink>
+                    </Space>
                 </div>
 
                 <Divider />
@@ -1053,21 +1170,36 @@ function App() {
                     </Space>
                 }
                 open={qrModalVisible}
-                onCancel={() => setQrModalVisible(false)}
+                onCancel={() => {
+                    console.log('🚪 Modal close requested')
+                    setQrModalVisible(false)
+                    setQrData(null)
+                }}
                 footer={null}
                 width={750}
                 centered
-                destroyOnHidden={false}
                 maskClosable={false}
                 closable={true}
+                afterOpenChange={(open) => {
+                    console.log('🔄 Modal open state changed to:', open)
+                }}
             >
-                {qrData ? (
-                    <LandVerificationQR data={qrData} onClose={() => setQrModalVisible(false)} />
-                ) : (
-                    <div style={{ padding: '40px', textAlign: 'center' }}>
-                        <Text type="secondary">Loading QR code...</Text>
-                    </div>
-                )}
+                {(() => {
+                    console.log('🖼️ Modal render - qrModalVisible:', qrModalVisible, 'qrData:', !!qrData)
+                    if (qrData) {
+                        return <LandVerificationQR data={qrData} onClose={() => {
+                            console.log('🚪 QR component close requested')
+                            setQrModalVisible(false)
+                            setQrData(null)
+                        }} />
+                    } else {
+                        return (
+                            <div style={{ padding: '40px', textAlign: 'center' }}>
+                                <Text type="secondary">Loading QR code...</Text>
+                            </div>
+                        )
+                    }
+                })()}
             </Modal>
         </Layout>
     )

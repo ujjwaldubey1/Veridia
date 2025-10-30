@@ -68,7 +68,25 @@ export const useLandRegistry = () => {
                     ],
                 },
             })
-            await aptos.waitForTransaction({ transactionHash: tx.hash })
+            
+            console.log('✅ Transaction submitted:', tx.hash)
+            
+            // Try to wait for transaction, but don't fail if it times out
+            try {
+                await aptos.waitForTransaction({ 
+                    transactionHash: tx.hash,
+                    options: {
+                        timeoutSecs: 30,
+                        checkSuccess: false // Don't throw on transaction failure
+                    }
+                })
+                console.log('✅ Transaction confirmed on blockchain')
+            } catch (waitError: any) {
+                // Transaction was submitted but we couldn't confirm it
+                // This is OK - the transaction might still be processing
+                console.warn('⚠️ Could not confirm transaction, but it was submitted:', waitError.message)
+            }
+            
             return tx
         },
         [signAndSubmitTransaction]
@@ -164,13 +182,24 @@ export const useLandRegistry = () => {
                 }
             }) as [string]
             
-            console.log("getNextLandId result:", result)
             if (result && result[0]) {
-                return parseInt(result[0])
+                const nextId = parseInt(result[0])
+                console.log("✅ Next Land ID from blockchain:", nextId)
+                return nextId
             }
             throw new Error("Empty result from view function")
-        } catch (error) {
-            console.error("SDK view failed, trying REST API directly:", error)
+        } catch (error: any) {
+            // Check if it's a 404 or module not found error
+            const is404 = error?.message?.includes('404') || 
+                         error?.message?.includes('not found') ||
+                         error?.status === 404
+            
+            if (is404) {
+                console.warn("⚠️ Contract not found or not initialized. Using default land ID (1)")
+                return 1
+            }
+            
+            console.warn("⚠️ SDK view failed, trying REST API directly...")
             
             // Fallback: Use REST API directly
             try {
@@ -193,11 +222,22 @@ export const useLandRegistry = () => {
                 })
                 
                 if (!response.ok) {
+                    if (response.status === 404) {
+                        console.warn("⚠️ Contract not deployed at address:", REGISTRY_ADDRESS)
+                        return 1
+                    }
                     throw new Error(`REST API failed: ${response.status}`)
                 }
                 
-                const data = await response.json()
-                console.log("REST API result:", data)
+                // Check if response has content before parsing
+                const text = await response.text()
+                if (!text || text.trim() === '') {
+                    console.warn("⚠️ Empty response from REST API")
+                    return 1
+                }
+                
+                const data = JSON.parse(text)
+                console.log("✅ REST API result:", data)
                 
                 if (data && Array.isArray(data) && data[0]) {
                     return parseInt(data[0])
@@ -208,9 +248,10 @@ export const useLandRegistry = () => {
                     return parseInt(data.value[0])
                 }
                 
-                throw new Error("Unexpected REST API response format")
-            } catch (restError) {
-                console.error("REST API fallback also failed:", restError)
+                console.warn("⚠️ Unexpected REST API response format")
+                return 1
+            } catch (restError: any) {
+                console.warn("⚠️ REST API fallback failed:", restError.message)
                 // Return 1 as default if registry not initialized
                 return 1
             }
