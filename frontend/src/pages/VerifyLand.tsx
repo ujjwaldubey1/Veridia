@@ -38,22 +38,49 @@ export const VerifyLand = () => {
                         arguments: [decoded.contractAddress, decoded.landId.toString()]
                     })
                 })
+                const text = await response.text()
+                if (!response.ok) {
+                    throw new Error(`Chain view failed (${response.status}): ${text || 'no details'}`)
+                }
 
-                const result = await response.json()
+                let parsed: any
+                try {
+                    parsed = text ? JSON.parse(text) : null
+                } catch (e) {
+                    throw new Error('Invalid JSON from fullnode view API')
+                }
 
-                if (result && result[0]) {
-                    const blockchainData = result[0]
-                    const isOwnerMatch = blockchainData[1] === decoded.owner
-                    const isJurisdictionMatch = blockchainData[2] === decoded.jurisdiction
-                    
+                // Aptos /view returns an array. It may be:
+                // [v0, v1, v2, v3, v4, v5] OR [[v0, v1, v2, v3, v4, v5]] depending on payload
+                let dataArray: any[] | null = null
+                if (Array.isArray(parsed)) {
+                    if (parsed.length === 6) {
+                        dataArray = parsed
+                    } else if (parsed.length > 0 && Array.isArray(parsed[0]) && parsed[0].length >= 6) {
+                        dataArray = parsed[0]
+                    }
+                }
+
+                if (dataArray && dataArray.length >= 6) {
+                    const id = dataArray[0]
+                    const owner = String(dataArray[1])
+                    const jurisdiction = String(dataArray[2])
+                    const metadataHash = String(dataArray[3])
+                    const statusRaw = String(dataArray[4])
+                    const registeredAt = String(dataArray[5])
+
+                    const norm = (s: string) => s?.toLowerCase()
+                    const isOwnerMatch = norm(owner) === norm(decoded.owner)
+                    const isJurisdictionMatch = (jurisdiction || '') === (decoded.jurisdiction || '')
+
                     setVerified(isOwnerMatch && isJurisdictionMatch)
                     setLandInfo({
-                        id: blockchainData[0],
-                        owner: blockchainData[1],
-                        jurisdiction: blockchainData[2],
-                        metadataHash: blockchainData[3],
-                        status: blockchainData[4],
-                        registeredAt: blockchainData[5]
+                        id,
+                        owner,
+                        jurisdiction,
+                        metadataHash,
+                        status: statusRaw,
+                        registeredAt,
                     })
                 } else {
                     setVerified(false)
