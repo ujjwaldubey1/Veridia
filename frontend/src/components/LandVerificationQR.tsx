@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { Card, Button, Space, Typography, Divider, Descriptions, Tag, message } from 'antd'
 import { QrcodeOutlined, CopyOutlined, DownloadOutlined, LinkOutlined } from '@ant-design/icons'
@@ -27,6 +27,7 @@ interface LandVerificationQRProps {
 
 const LandVerificationQR = ({ data, onClose }: LandVerificationQRProps) => {
     const [verificationUrl, setVerificationUrl] = useState('')
+    const qrContainerRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
         try {
@@ -60,14 +61,95 @@ const LandVerificationQR = ({ data, onClose }: LandVerificationQRProps) => {
     }
 
     const handleDownloadQR = () => {
-        const canvas = document.querySelector('canvas')
-        if (canvas) {
-            const url = canvas.toDataURL('image/png')
-            const link = document.createElement('a')
-            link.href = url
-                                    link.download = `land-${formatLandId(data.landId)}-verification.png`
-            link.click()
-            message.success('QR code downloaded!')
+        try {
+            // Find the SVG element within the container
+            const container = qrContainerRef.current
+            if (!container) {
+                console.error('QR code container not found')
+                message.error('QR code not ready. Please wait a moment and try again.')
+                return
+            }
+
+            const svgElement = container.querySelector('svg') as SVGSVGElement
+            if (!svgElement) {
+                console.error('QR code SVG element not found')
+                message.error('QR code not ready. Please wait a moment and try again.')
+                return
+            }
+
+            // Clone the SVG to avoid modifying the original
+            const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement
+            
+            // Ensure SVG has proper dimensions for conversion
+            const size = 512 // Higher resolution for better quality
+            if (!clonedSvg.getAttribute('width')) {
+                clonedSvg.setAttribute('width', String(size))
+            }
+            if (!clonedSvg.getAttribute('height')) {
+                clonedSvg.setAttribute('height', String(size))
+            }
+            if (!clonedSvg.getAttribute('viewBox')) {
+                const rect = svgElement.getBoundingClientRect()
+                clonedSvg.setAttribute('viewBox', `0 0 ${rect.width || size} ${rect.height || size}`)
+            }
+
+            // Get SVG content
+            const svgData = new XMLSerializer().serializeToString(clonedSvg)
+            const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
+            const svgUrl = URL.createObjectURL(svgBlob)
+
+            // Create an image to convert SVG to canvas
+            const img = new Image()
+            img.onload = () => {
+                // Create a canvas to draw the image
+                const canvas = document.createElement('canvas')
+                canvas.width = size
+                canvas.height = size
+                const ctx = canvas.getContext('2d')
+
+                if (!ctx) {
+                    console.error('Could not get canvas context')
+                    message.error('Failed to create image')
+                    URL.revokeObjectURL(svgUrl)
+                    return
+                }
+
+                // Draw white background
+                ctx.fillStyle = 'white'
+                ctx.fillRect(0, 0, size, size)
+
+                // Draw the SVG image
+                ctx.drawImage(img, 0, 0, size, size)
+
+                // Convert canvas to PNG and download
+                canvas.toBlob((blob) => {
+                    if (blob) {
+                        const url = URL.createObjectURL(blob)
+                        const link = document.createElement('a')
+                        link.href = url
+                        link.download = `land-${formatLandId(data.landId)}-verification.png`
+                        document.body.appendChild(link)
+                        link.click()
+                        document.body.removeChild(link)
+                        URL.revokeObjectURL(url)
+                        message.success('QR code downloaded successfully!')
+                    } else {
+                        message.error('Failed to create image')
+                    }
+                    URL.revokeObjectURL(svgUrl)
+                }, 'image/png')
+            }
+
+            img.onerror = () => {
+                console.error('Failed to load SVG image')
+                message.error('Failed to download QR code')
+                URL.revokeObjectURL(svgUrl)
+            }
+
+            img.src = svgUrl
+        } catch (error) {
+            console.error('Error downloading QR code:', error)
+            message.error('Failed to download QR code')
         }
     }
 
@@ -112,7 +194,7 @@ const LandVerificationQR = ({ data, onClose }: LandVerificationQRProps) => {
 
                 {/* QR Code */}
                 {verificationUrl ? (
-                    <div style={{ textAlign: 'center' }}>
+                    <div ref={qrContainerRef} style={{ textAlign: 'center' }}>
                         <QRCodeSVG
                             value={verificationUrl}
                             size={256}
